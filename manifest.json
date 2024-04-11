@@ -1,0 +1,19 @@
+{
+	"manifest_version": 3,
+	"name": "Widescreen aspect ratio fix",
+	"version": "1.0",
+	"description": "Automatically adjusts the aspect ratio of videos to only have one set of black bars",
+	"permissions": ["tabs", "activeTab", "storage"],
+
+	"content_scripts": [
+		{
+			"matches": ["<all_urls>"],
+			"js": ["wideContent.js"],
+			"run_at": "document_start"
+		}
+	],
+	"host_permissions": ["*://*/*"],
+	"action": {
+		"default_popup": "popup.html"
+	}
+}
