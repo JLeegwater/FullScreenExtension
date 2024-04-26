@@ -1,110 +1,238 @@
-// const tag = document.createElement("script");
-// document.head.appendChild(tag);
-const dev = false;
+const verbosity = 6;
+const dev = true;
+initializeWhenReady(document);
 
-function findPlayer() {
-	let player = document.querySelector("video");
-
-	if (!player) {
-		dev && console.log("Could not find non Shadow Host player");
-		player = findShadowPlayer();
-	}
-
-	return player ? player : null;
-}
-
-function findShadowPlayer() {
-	const allElements = document.querySelectorAll("*");
-
-	for (let element of allElements) {
-		if (element.shadowRoot !== null) {
-			const videoElement = element.shadowRoot.querySelector("video");
-			if (videoElement) {
-				dev &&
-					console.log(
-						"Found video element within an open Shadow Host:",
-						videoElement
-					);
-
-				return videoElement;
-				// You can perform further actions with the video element here
-			}
+function addWidescreenFunctionality(playerElement) {
+	const sliderValue = (message) => {
+		if (message.sliderValue === undefined) {
+			throw new Error("Invalid message from onMessage listener:", message);
 		}
-	}
-}
+		return message.sliderValue;
+	};
 
-//function waitForPlayer() to call findPlayer(). if find player is not found, wait for 3 seconds and try again up to 3 times
-function waitForPlayer(timeout = 3000, retryCount = 3) {
-	return new Promise((resolve, reject) => {
-		let attempts = 0;
+	chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+		const scale = sliderValue(message);
 
-		const tryToResolve = () => {
-			const element = findPlayer();
+		if (isNaN(scale)) {
+			throw new Error("Invalid slider value:", scale);
+		}
 
-			if (element) {
-				resolve(element);
-			} else {
-				const handleTimeout = () => {
-					if (attempts < retryCount) {
-						attempts++;
-						tryToResolve();
-					} else {
-						reject(
-							new Error(`Failed to find player after ${retryCount} attempts`)
-						);
-					}
-				};
-
-				setTimeout(handleTimeout, timeout);
-			}
-		};
-
-		tryToResolve();
+		playerElement.style.transform = `scale(${scale})`;
 	});
 }
 
-async function runExtension() {
-	console.log("Running Widescreen extension");
-	try {
-		let player = await waitForPlayer();
-
-		if (player === null || player === undefined) {
-			throw new Error("Null pointer exception: player is null");
+function log(message, level) {
+	if (typeof level === "undefined") {
+		level = 6;
+	}
+	if (verbosity >= level) {
+		if (level === 2) {
+			console.log("ERROR:" + message);
+		} else if (level === 3) {
+			console.log("WARNING:" + message);
+		} else if (level === 4) {
+			console.log("INFO:" + message);
+		} else if (level === 5) {
+			console.log("DEBUG:" + message);
+		} else if (level === 6) {
+			console.log("DEBUG (VERBOSE):" + message);
+			console.trace();
 		}
-
-		player.addEventListener("loadeddata", () => {
-			if (player.readyState >= 3) {
-				dev &&
-					console.log("Video player is fully loaded and ready for interaction");
-
-				chrome.runtime.onMessage.addListener(function (
-					message,
-					sender,
-					sendResponse
-				) {
-					if (message.sliderValue === undefined) {
-						throw new Error(
-							"Invalid message from onMessage listener:",
-							message
-						);
-					}
-
-					const sliderValue = message.sliderValue;
-
-					if (isNaN(sliderValue)) {
-						throw new Error("Invalid slider value:", sliderValue);
-					}
-
-					dev && console.log("Received slider value:", sliderValue);
-
-					// Perform actions with the slider value in content.js
-					player.style.transform = "scale(" + sliderValue + ")";
-				});
-			}
-		});
-	} catch (error) {
-		console.error("Error in runExtension:", error);
 	}
 }
 
-window.addEventListener("DOMContentLoaded", runExtension);
+function initializeWhenReady(document) {
+	log("Begin initializeWhenReady", 5);
+
+	window.onload = () => {
+		initializeNow(window.document);
+	};
+	if (document) {
+		if (document.readyState === "complete") {
+			initializeNow(document);
+		} else {
+			document.onreadystatechange = () => {
+				if (document.readyState === "complete") {
+					initializeNow(document);
+				}
+			};
+		}
+	}
+	log("End initializeWhenReady", 5);
+}
+
+function getShadow(parent) {
+	let result = [];
+	function getChild(parent) {
+		if (parent.firstElementChild) {
+			var child = parent.firstElementChild;
+			do {
+				result.push(child);
+				getChild(child);
+				if (child.shadowRoot) {
+					result.push(getShadow(child.shadowRoot));
+				}
+				child = child.nextElementSibling;
+			} while (child);
+		}
+	}
+	getChild(parent);
+	return result.flat(Infinity);
+}
+
+function initializeNow(document) {
+	log("Begin initializeNow", 5);
+	// enforce init-once due to redundant callers
+	if (!document.body || document.body.classList.contains("ws-initialized")) {
+		return;
+	}
+	try {
+		setupListener();
+	} catch {
+		// no operation
+	}
+	document.body.classList.add("ws-initialized");
+	log("initializeNow: ws-initialized added to document body", 5);
+
+	function checkForVideoAndShadowRoot(node, parent, added) {
+		// Only proceed with supposed removal if node is missing from DOM
+		if (!added && document.body?.contains(node)) {
+			// This was written prior to the addition of shadowRoot processing.
+			// TODO: Determine if shadowRoot deleted nodes need this sort of
+			// check as well.
+			return;
+		}
+		if (node.nodeName === "VIDEO") {
+			if (added) {
+				addWidescreenFunctionality(node);
+				console.log("Line 108: ");
+				console.log(node);
+				// node.style.transform = "scale(2)";
+			} else {
+				if (node.vsc) {
+					node.vsc.remove();
+				}
+			}
+		} else {
+			var children = [];
+			if (node.shadowRoot) {
+				documentAndShadowRootObserver.observe(
+					node.shadowRoot,
+					documentAndShadowRootObserverOptions
+				);
+				children = Array.from(node.shadowRoot.children);
+			}
+			if (node.children) {
+				children = [...children, ...node.children];
+			}
+			for (const child of children) {
+				checkForVideoAndShadowRoot(child, child.parentNode || parent, added);
+			}
+		}
+	}
+
+	var documentAndShadowRootObserver = new MutationObserver(function (
+		mutations
+	) {
+		// Process the DOM nodes lazily
+		requestIdleCallback(
+			(_) => {
+				mutations.forEach(function (mutation) {
+					switch (mutation.type) {
+						case "childList":
+							mutation.addedNodes.forEach(function (node) {
+								if (typeof node === "function") return;
+								if (node === document.documentElement) {
+									// This happens on sites that use document.write, e.g. watch.sling.com
+									// When the document gets replaced, we lose all event handlers, so we need to reinitialize
+									log("Document was replaced, reinitializing", 5);
+									initializeWhenReady(document);
+									return;
+								}
+								checkForVideoAndShadowRoot(
+									node,
+									node.parentNode || mutation.target,
+									true
+								);
+							});
+							mutation.removedNodes.forEach(function (node) {
+								if (typeof node === "function") return;
+								checkForVideoAndShadowRoot(
+									node,
+									node.parentNode || mutation.target,
+									false
+								);
+							});
+							break;
+						case "attributes":
+							if (
+								(mutation.target.attributes["aria-hidden"] &&
+									mutation.target.attributes["aria-hidden"].value == "false") ||
+								mutation.target.nodeName === "APPLE-TV-PLUS-PLAYER"
+							) {
+								var flattenedNodes = getShadow(document.body);
+								var nodes = flattenedNodes.filter((x) => x.tagName == "VIDEO");
+								for (let node of nodes) {
+									// only add vsc the first time for the apple-tv case (the attribute change is triggered every time you click the vsc)
+									if (
+										node.vsc &&
+										mutation.target.nodeName === "APPLE-TV-PLUS-PLAYER"
+									)
+										continue;
+									if (node.vsc) node.vsc.remove();
+									checkForVideoAndShadowRoot(
+										node,
+										node.parentNode || mutation.target,
+										true
+									);
+								}
+							}
+							break;
+					}
+				});
+			},
+			{ timeout: 1000 }
+		);
+	});
+	documentAndShadowRootObserverOptions = {
+		attributeFilter: ["aria-hidden", "data-focus-method"],
+		childList: true,
+		subtree: true,
+	};
+	documentAndShadowRootObserver.observe(
+		document,
+		documentAndShadowRootObserverOptions
+	);
+
+	const mediaTagSelector = "video";
+	mediaTags = Array.from(document.querySelectorAll(mediaTagSelector));
+
+	document.querySelectorAll("*").forEach((element) => {
+		if (element.shadowRoot) {
+			documentAndShadowRootObserver.observe(
+				element.shadowRoot,
+				documentAndShadowRootObserverOptions
+			);
+			mediaTags.push(...element.shadowRoot.querySelectorAll(mediaTagSelector));
+		}
+	});
+
+	mediaTags.forEach(function (video) {
+		console.log("Line 220: ");
+		console.log(video);
+
+		addWidescreenFunctionality(video);
+	});
+
+	var frameTags = document.getElementsByTagName("iframe");
+	Array.prototype.forEach.call(frameTags, function (frame) {
+		// Ignore frames we don't have permission to access (different origin).
+		try {
+			var childDocument = frame.contentDocument;
+		} catch (e) {
+			return;
+		}
+		initializeWhenReady(childDocument);
+	});
+	log("End initializeNow", 5);
+}
