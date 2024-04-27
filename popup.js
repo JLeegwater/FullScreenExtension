@@ -1,30 +1,70 @@
 console.log("Running popup.js");
 
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", () => {
 	const slider = document.getElementById("slider");
+	const sliderValueElement = document.getElementById("sliderValue");
+	const saveButton = document.getElementById("saveButton");
+	const storedValue = localStorage.getItem("sliderValue") || 1;
+	let savedLevels = JSON.parse(localStorage.getItem("savedLevels")) || [];
 
-	// Check if slider value is stored in local storage
-	const storedValue = localStorage.getItem("sliderValue");
-	if (storedValue) {
-		slider.value = storedValue;
-		document.getElementById("sliderValue").innerText = storedValue;
+	setSliderValue(storedValue);
+	displaySavedLevels();
+
+	slider.addEventListener("input", function () {
+		setSliderValue(this.value);
+	});
+
+	saveButton.addEventListener("click", () => {
+		const name = document.getElementById("nameInput").value;
+		const level = slider.value;
+
+		savedLevels.push({
+			name: name,
+			level: level,
+		});
+
+		localStorage.setItem("savedLevels", JSON.stringify(savedLevels));
+
+		displaySavedLevels();
+	});
+
+	function setSliderValue(value) {
+		slider.value = value;
+		sliderValueElement.innerText = value;
+		localStorage.setItem("sliderValue", value);
 		chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-			chrome.tabs.sendMessage(tabs[0].id, {
-				sliderValue: storedValue,
-			});
+			chrome.tabs.sendMessage(tabs[0].id, { sliderValue: value });
 		});
 	}
 
-	slider.addEventListener("input", function () {
-		const sliderValue = this.value;
-		document.getElementById("sliderValue").innerText = sliderValue;
+	function displaySavedLevels() {
+		const savedLevelsDiv = document.getElementById("savedLevels");
+		savedLevelsDiv.innerHTML = "";
 
-		// Store the slider value in local storage
-		localStorage.setItem("sliderValue", sliderValue);
+		savedLevels.forEach((level) => {
+			const button = document.createElement("button");
+			button.textContent = `${level.name}: ${level.level}`;
+			button.name = level.name;
+			button.value = level.level;
+			button.addEventListener("click", function () {
+				setSliderValue(this.value);
+			});
 
-		// Send the slider value to content.js
-		chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-			chrome.tabs.sendMessage(tabs[0].id, { sliderValue: sliderValue });
+			const deleteBtn = document.createElement("button");
+			deleteBtn.textContent = "X";
+			deleteBtn.addEventListener("click", function (e) {
+				e.stopPropagation();
+				savedLevels = savedLevels.filter(
+					(level) => level.name !== this.parentNode.name
+				);
+
+				localStorage.setItem("savedLevels", JSON.stringify(savedLevels));
+
+				displaySavedLevels();
+			});
+
+			button.appendChild(deleteBtn);
+			savedLevelsDiv.appendChild(button);
 		});
-	});
+	}
 });

@@ -1,6 +1,8 @@
 const verbosity = 6;
 const dev = true;
+console.log("Starting wideContent.js");
 initializeWhenReady(document);
+// wideContent.js
 
 function addWidescreenFunctionality(playerElement) {
 	const sliderValue = (message) => {
@@ -97,17 +99,11 @@ function initializeNow(document) {
 	function checkForVideoAndShadowRoot(node, parent, added) {
 		// Only proceed with supposed removal if node is missing from DOM
 		if (!added && document.body?.contains(node)) {
-			// This was written prior to the addition of shadowRoot processing.
-			// TODO: Determine if shadowRoot deleted nodes need this sort of
-			// check as well.
 			return;
 		}
 		if (node.nodeName === "VIDEO") {
 			if (added) {
 				addWidescreenFunctionality(node);
-				console.log("Line 108: ");
-				console.log(node);
-				// node.style.transform = "scale(2)";
 			} else {
 				if (node.vsc) {
 					node.vsc.remove();
@@ -232,6 +228,7 @@ function initializeNow(document) {
 		} catch (e) {
 			return;
 		}
+		console.log(frame);
 		initializeWhenReady(childDocument);
 	});
 	log("End initializeNow", 5);
