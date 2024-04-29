@@ -5,21 +5,25 @@ initializeWhenReady(document);
 // wideContent.js
 
 function addWidescreenFunctionality(playerElement) {
-	const sliderValue = (message) => {
-		if (message.sliderValue === undefined) {
-			throw new Error("Invalid message from onMessage listener:", message);
-		}
-		return message.sliderValue;
-	};
-
 	chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-		const scale = sliderValue(message);
+		const scale = message.sliderValue;
+		const positionFix = message.positionFix;
+		console.log(message);
+		if (scale) {
+			playerElement.style.transform = `scale(${scale})`;
+		}
+		if (positionFix) {
+			console.log("positionFix is true");
+			playerElement.style.position = "static";
+		}
+		if (isNaN(positionFix)) {
+			console.log(positionFix);
+			throw new Error("Invalid position fix:", positionFix);
+		}
 
 		if (isNaN(scale)) {
 			throw new Error("Invalid slider value:", scale);
 		}
-
-		playerElement.style.transform = `scale(${scale})`;
 	});
 }
 

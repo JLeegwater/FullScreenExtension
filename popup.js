@@ -3,6 +3,7 @@ console.log("Running popup.js");
 document.addEventListener("DOMContentLoaded", () => {
 	const slider = document.getElementById("slider");
 	const sliderValueElement = document.getElementById("sliderValue");
+	const positionFix = document.getElementById("positionFix");
 	const saveButton = document.getElementById("saveButton");
 	const storedValue = localStorage.getItem("sliderValue") || 1;
 	let savedLevels = JSON.parse(localStorage.getItem("savedLevels")) || [];
@@ -12,6 +13,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	slider.addEventListener("input", function () {
 		setSliderValue(this.value);
+	});
+	positionFix.addEventListener("change", function () {
+		const checkbox = this.checked; // save reference to checkbox
+
+		chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+			chrome.tabs.sendMessage(tabs[0].id, {
+				positionFix: checkbox, // use saved reference
+			});
+		});
 	});
 
 	saveButton.addEventListener("click", () => {
